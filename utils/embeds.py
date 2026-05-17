@@ -32,7 +32,7 @@ class EmbedColor:
     DARK     = 0x2B2D31
 
 
-_FOOTER = sc("logiq") + "  ·  logiq bot"
+_FOOTER = sc("rioshin") + " • " + sc("rioshinbot")
 
 
 class EmbedFactory:
@@ -108,7 +108,7 @@ class EmbedFactory:
             title=f"◎ {sc('AI Response')}",
             description=message,
             color=EmbedColor.AI,
-            footer=f"{sc('powered by')} {model}  ·  {sc('logiq')}"
+            footer=f"{sc('powered by')} {model}  ·  {sc('rioshin')}"
         )
 
     @staticmethod
@@ -175,7 +175,7 @@ class EmbedFactory:
             title=f"🔐 {sc('Verification Required')}",
             description="Click the button below to verify yourself and unlock access to the server.",
             color=EmbedColor.PRIMARY,
-            footer=sc("complete verification to unlock all channels") + "  ·  " + sc("logiq")
+            footer=sc("complete verification to unlock all channels") + "  ·  " + sc("rioshin")
         )
 
     @staticmethod

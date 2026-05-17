@@ -236,7 +236,7 @@ class Giveaways(commands.Cog):
                 f"*Click the button below to enter!*"
             ),
             color=EmbedColor.PREMIUM,
-            footer=sc("ends at") + f"  ·  {sc('logiq')}"
+            footer=sc("ends at") + f"  ·  {sc('rioshin')}"
         )
         embed.timestamp = datetime.utcfromtimestamp(end_time)
 
