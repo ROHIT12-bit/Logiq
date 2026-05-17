@@ -51,6 +51,9 @@ class Tickets(commands.Cog):
         self.db = db
         self.config = config
         self.module_config = config.get('modules', {}).get('tickets', {})
+        # Re-register persistent views so buttons work after restarts
+        bot.add_view(TicketCreateView(self))
+        bot.add_view(TicketControlView(self))
 
     async def create_ticket_for_user(self, interaction: discord.Interaction):
         """Create a ticket for a user"""
@@ -187,10 +190,14 @@ class Tickets(commands.Cog):
         support_role_id = guild_config.get('support_role') if guild_config else None
 
         is_ticket_owner = interaction.channel.name == f"ticket-{interaction.user.name}"
-        is_admin = interaction.user.guild_permissions.administrator
-        has_support_role = support_role_id and interaction.guild.get_role(support_role_id) in interaction.user.roles
+        is_staff = isinstance(interaction.user, discord.Member) and interaction.user.guild_permissions.administrator
+        has_support_role = (
+            support_role_id
+            and isinstance(interaction.user, discord.Member)
+            and interaction.guild.get_role(support_role_id) in interaction.user.roles
+        )
 
-        if not (is_ticket_owner or is_admin or has_support_role):
+        if not (is_ticket_owner or is_staff or has_support_role):
             await interaction.response.send_message(
                 embed=EmbedFactory.error("No Permission", "Only the ticket owner or staff can close this ticket"),
                 ephemeral=True
