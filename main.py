@@ -65,6 +65,25 @@ class Logiq(commands.Bot):
             self.logger.error(f"Failed to connect to database: {e}", exc_info=True)
             sys.exit(1)
 
+        # Global app command error handler
+        async def on_tree_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+            if isinstance(error, discord.app_commands.CheckFailure):
+                msg = "This command can only be used inside a server." if interaction.guild is None \
+                    else "You don't have permission to use this command."
+                try:
+                    await interaction.response.send_message(msg, ephemeral=True)
+                except discord.InteractionResponded:
+                    await interaction.followup.send(msg, ephemeral=True)
+            else:
+                self.logger.error(f"App command error: {error}", exc_info=True)
+                msg = "An error occurred while running this command."
+                try:
+                    await interaction.response.send_message(msg, ephemeral=True)
+                except discord.InteractionResponded:
+                    await interaction.followup.send(msg, ephemeral=True)
+
+        self.tree.on_error = on_tree_error
+
         # Load cogs
         await self.load_cogs()
 
