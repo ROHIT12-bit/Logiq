@@ -66,21 +66,30 @@ class Logiq(commands.Bot):
             sys.exit(1)
 
         # Global app command error handler
+        from utils.embeds import EmbedFactory
+
         async def on_tree_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
             if isinstance(error, discord.app_commands.CheckFailure):
-                msg = "This command can only be used inside a server." if interaction.guild is None \
-                    else "You don't have permission to use this command."
-                try:
-                    await interaction.response.send_message(msg, ephemeral=True)
-                except discord.InteractionResponded:
-                    await interaction.followup.send(msg, ephemeral=True)
+                if interaction.guild is None:
+                    embed = EmbedFactory.error(
+                        "Server Only",
+                        "This command can only be used inside a server."
+                    )
+                else:
+                    embed = EmbedFactory.error(
+                        "Access Denied",
+                        "You don't have permission to use this command."
+                    )
             else:
                 self.logger.error(f"App command error: {error}", exc_info=True)
-                msg = "An error occurred while running this command."
-                try:
-                    await interaction.response.send_message(msg, ephemeral=True)
-                except discord.InteractionResponded:
-                    await interaction.followup.send(msg, ephemeral=True)
+                embed = EmbedFactory.error(
+                    "Something Went Wrong",
+                    "An unexpected error occurred. Please try again later."
+                )
+            try:
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            except discord.InteractionResponded:
+                await interaction.followup.send(embed=embed, ephemeral=True)
 
         self.tree.on_error = on_tree_error
 
