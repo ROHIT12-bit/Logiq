@@ -28,8 +28,8 @@ class Logiq(commands.Bot):
         """Initialize bot"""
         # Setup intents
         intents = discord.Intents.default()
-        intents.message_content = True
-        intents.members = True
+        intents.message_content = False
+        intents.members = False
         intents.presences = False
 
         # Initialize bot
