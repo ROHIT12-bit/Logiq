@@ -151,8 +151,13 @@ class SplitOrSteal(commands.Cog):
             )
             return
 
-        # ── Store game state ──────────────────────────────────────────────────
-        self.games[interaction.guild.id] = {
+        currency = self.config.get("modules", {}).get("economy", {}).get("currency_symbol", "💎")
+
+        # ── Defer immediately so Discord doesn't time out while we send DMs ──
+        await interaction.response.defer()
+
+        # ── Build and send DMs first — announce only if both succeed ─────────
+        game_state = {
             "player1":    player1.id,
             "player2":    player2.id,
             "prize":      prize,
@@ -161,16 +166,64 @@ class SplitOrSteal(commands.Cog):
             "started_at": datetime.utcnow().timestamp(),
             "choices":    {}
         }
+        self.games[interaction.guild.id] = game_state
 
-        currency = self.config.get("modules", {}).get("economy", {}).get("currency_symbol", "💎")
+        failed_dms = []
+        pairs = [
+            (player1, player2),   # player1's DM shows player2 as opponent
+            (player2, player1),   # player2's DM shows player1 as opponent
+        ]
+        for player, opponent in pairs:
+            view = ChoiceView(self.games, interaction.guild.id, player.id)
+            dm_embed = EmbedFactory.create(
+                title=f"🎭 {sc('Split or Steal — Your Choice')}",
+                description=(
+                    f"You've been challenged in a **Split or Steal** game in **{interaction.guild.name}**.\n\n"
+                    f"**{sc('opponent')}** {opponent.display_name}\n"
+                    f"**{sc('prize pool')}** {currency} {prize:,}\n\n"
+                    "Pick your strategy carefully. Your opponent **cannot** see your choice "
+                    "until the admin runs `/reveal`."
+                ),
+                color=EmbedColor.WARNING,
+                fields=[
+                    {
+                        "name": "🤝 " + sc("split"),
+                        "value": "If both split — you each receive half the prize.",
+                        "inline": True
+                    },
+                    {
+                        "name": "🦹 " + sc("steal"),
+                        "value": "If you steal and they split — you take everything.",
+                        "inline": True
+                    }
+                ]
+            )
+            dm_embed.set_footer(text=sc("rioshin") + " • " + sc("rioshinbot"))
+            try:
+                await player.send(embed=dm_embed, view=view)
+            except (discord.Forbidden, discord.HTTPException) as e:
+                logger.warning(f"Could not DM {player} for Split or Steal: {e}")
+                failed_dms.append(player.mention)
 
-        # ── Public announcement ───────────────────────────────────────────────
+        if failed_dms:
+            self.games.pop(interaction.guild.id, None)
+            await interaction.followup.send(
+                embed=EmbedFactory.error(
+                    "Game Cancelled",
+                    f"Could not send a DM to {', '.join(failed_dms)}.\n\n"
+                    "Both players must allow DMs from server members.\n"
+                    "Ask them to enable **Privacy Settings → Allow DMs from server members**, then try again."
+                )
+            )
+            return
+
+        # ── Both DMs sent — now post the public announcement ─────────────────
         announce = EmbedFactory.create(
             title=f"🎭 {sc('Split or Steal')}",
             description=(
-                f"{player1.mention} vs {player2.mention}\n\n"
+                f"{player1.mention} **vs** {player2.mention}\n\n"
                 f"**{sc('prize pool')}** {currency} {prize:,}\n\n"
-                "Each player has been sent a **private DM** to make their secret choice.\n"
+                "Both players have been DM'd to make their **secret** choice.\n"
                 "No one will know what was chosen until the admin runs `/reveal`."
             ),
             color=EmbedColor.PRIMARY,
@@ -180,66 +233,14 @@ class SplitOrSteal(commands.Cog):
                     "value": (
                         "🤝 **Split + Split** — prize divided equally\n"
                         "🦹 **Split + Steal** — the stealer takes everything\n"
-                        "💀 **Steal + Steal** — both players lose it all"
+                        "💀 **Steal + Steal** — both lose it all"
                     ),
                     "inline": False
                 }
             ]
         )
         announce.set_footer(text=sc("rioshin") + " • " + sc("rioshinbot"))
-
-        await interaction.response.send_message(embed=announce)
-
-        # ── DM both players ───────────────────────────────────────────────────
-        dm_embed_base = EmbedFactory.create(
-            title=f"🎭 {sc('Split or Steal — Your Choice')}",
-            description=(
-                f"You've been invited to a **Split or Steal** game in **{interaction.guild.name}**.\n\n"
-                f"**{sc('opponent')}** {player2.display_name if interaction.user.id != player1.id else player1.display_name}\n"
-                f"**{sc('prize pool')}** {currency} {prize:,}\n\n"
-                "Pick your strategy. Your opponent **cannot** see your choice until both have locked in."
-            ),
-            color=EmbedColor.WARNING,
-            fields=[
-                {
-                    "name": "🤝 " + sc("split"),
-                    "value": "If both split — you share the prize equally.",
-                    "inline": True
-                },
-                {
-                    "name": "🦹 " + sc("steal"),
-                    "value": "If you steal and they split — you take everything.",
-                    "inline": True
-                }
-            ]
-        )
-        dm_embed_base.set_footer(text=sc("rioshin") + " • " + sc("rioshinbot"))
-
-        failed_dms = []
-        for player in (player1, player2):
-            view = ChoiceView(self.games, interaction.guild.id, player.id)
-            try:
-                dm_embed = dm_embed_base.copy()
-                dm_embed.description = (
-                    f"You've been challenged in a **Split or Steal** game in **{interaction.guild.name}**.\n\n"
-                    f"**{sc('opponent')}** {(player2 if player.id == player1.id else player1).display_name}\n"
-                    f"**{sc('prize pool')}** {currency} {prize:,}\n\n"
-                    "Pick your strategy. Your opponent **cannot** see your choice until both have locked in."
-                )
-                await player.send(embed=dm_embed, view=view)
-            except discord.Forbidden:
-                failed_dms.append(player.mention)
-
-        if failed_dms:
-            await interaction.followup.send(
-                embed=EmbedFactory.warning(
-                    "DM Failed",
-                    f"Could not DM {', '.join(failed_dms)}. They must enable DMs from server members.\n"
-                    "The game has been cancelled."
-                ),
-                ephemeral=True
-            )
-            self.games.pop(interaction.guild.id, None)
+        await interaction.followup.send(embed=announce)
 
         logger.info(f"{interaction.user} started Split or Steal: {player1} vs {player2} for {prize} in {interaction.guild}")
 
