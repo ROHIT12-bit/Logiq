@@ -12,7 +12,8 @@ import logging
 import random
 import asyncio
 
-from utils.embeds import EmbedFactory, EmbedColor
+from bson import ObjectId
+from utils.embeds import EmbedFactory, EmbedColor, sc
 from utils.permissions import is_admin
 from utils.converters import TimeConverter
 from database.db_manager import DatabaseManager
@@ -32,7 +33,7 @@ class GiveawayView(discord.ui.View):
     async def enter_giveaway(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle giveaway entry"""
         # Get giveaway from database
-        giveaway = await self.cog.db.db.giveaways.find_one({"_id": self.giveaway_id})
+        giveaway = await self.cog.db.db.giveaways.find_one({"_id": ObjectId(self.giveaway_id)})
         
         if not giveaway:
             await interaction.response.send_message(
@@ -60,7 +61,7 @@ class GiveawayView(discord.ui.View):
 
         # Add user to participants
         await self.cog.db.db.giveaways.update_one(
-            {"_id": self.giveaway_id},
+            {"_id": ObjectId(self.giveaway_id)},
             {"$push": {"participants": interaction.user.id}}
         )
 
@@ -225,15 +226,18 @@ class Giveaways(commands.Cog):
 
         # Create giveaway embed
         embed = EmbedFactory.create(
-            title="🎉 GIVEAWAY 🎉",
-            description=f"**Prize:** {prize}\n\n"
-                       f"**Winners:** {winners}\n"
-                       f"**Hosted by:** {interaction.user.mention}\n"
-                       f"**Ends:** <t:{end_timestamp}:R> (<t:{end_timestamp}:F>)\n\n"
-                       "Click the button below to enter!",
-            color=EmbedColor.SUCCESS
+            title=f"🎉 {sc('Giveaway')}",
+            description=(
+                f"**{sc('prize')}** ╌╌ {prize}\n\n"
+                f"**{sc('winners')}** ╌╌ {winners}\n"
+                f"**{sc('hosted by')}** ╌╌ {interaction.user.mention}\n"
+                f"**{sc('ends')}** ╌╌ <t:{end_timestamp}:R>\n"
+                f"<t:{end_timestamp}:F>\n\n"
+                f"*Click the button below to enter!*"
+            ),
+            color=EmbedColor.PREMIUM,
+            footer=sc("ends at") + f"  ·  {sc('logiq')}"
         )
-        embed.set_footer(text=f"Ends at")
         embed.timestamp = datetime.utcfromtimestamp(end_time)
 
         view = GiveawayView(giveaway_id, self)
