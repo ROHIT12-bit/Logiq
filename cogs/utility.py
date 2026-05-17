@@ -10,8 +10,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 import logging
 import asyncio
+import random
 
-from utils.embeds import EmbedFactory, EmbedColor
+from utils.embeds import EmbedFactory, EmbedColor, sc
 from utils.converters import TimeConverter
 from utils.permissions import is_admin
 from database.db_manager import DatabaseManager
@@ -124,6 +125,134 @@ class Utility(commands.Cog):
             except Exception as e:
                 logger.error(f"Error in reminder checker: {e}", exc_info=True)
                 await asyncio.sleep(60)
+
+    @app_commands.command(name="ping", description="Check bot latency")
+    async def ping(self, interaction: discord.Interaction):
+        """Show bot latency"""
+        latency = round(self.bot.latency * 1000)
+        embed = EmbedFactory.create(
+            title=f"◈ {sc('Ping')}",
+            description=f"**{sc('websocket')}** {latency} ms",
+            color=EmbedColor.SUCCESS if latency < 100 else EmbedColor.WARNING if latency < 200 else EmbedColor.ERROR
+        )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="help", description="Browse all available commands")
+    async def help(self, interaction: discord.Interaction):
+        """List all commands"""
+        embed = EmbedFactory.create(
+            title=f"◈ {sc('Commands')}",
+            color=EmbedColor.PRIMARY,
+            fields=[
+                {"name": sc("general"),    "value": "`/ping` `/help` `/avatar` `/userinfo` `/serverinfo` `/8ball` `/roll` `/choose`", "inline": False},
+                {"name": sc("leveling"),   "value": "`/rank` `/leaderboard`", "inline": False},
+                {"name": sc("economy"),    "value": "`/balance` `/daily` `/weekly` `/work` `/transfer` `/rob` `/shop` `/coinflip-bet`", "inline": False},
+                {"name": sc("games"),      "value": "`/setup-game-panel`", "inline": False},
+                {"name": sc("moderation"), "value": "`/warn` `/warnings` `/timeout` `/kick` `/ban` `/unban` `/purge` `/lock` `/unlock` `/slowmode` `/nickname`", "inline": False},
+                {"name": sc("tickets"),    "value": "`/ticket-panel` `/ticket-setup` `/tickets` `/close-ticket`", "inline": False},
+                {"name": sc("giveaways"),  "value": "`/giveaway` `/gend` `/greroll`", "inline": False},
+                {"name": sc("music"),      "value": "`/play` `/pause` `/resume` `/skip` `/queue` `/nowplaying` `/volume` `/leave`", "inline": False},
+                {"name": sc("utility"),    "value": "`/poll` `/remind` `/summarize` `/ask`", "inline": False},
+                {"name": sc("admin"),      "value": "`/setlevel` `/setlevelchannel` `/setlogchannel` `/config` `/modules` `/sync`", "inline": False},
+            ]
+        )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="serverinfo", description="View server information")
+    async def serverinfo(self, interaction: discord.Interaction):
+        """Show server info"""
+        guild = interaction.guild
+        embed = EmbedFactory.create(
+            title=f"◈ {sc(guild.name)}",
+            color=EmbedColor.INFO,
+            thumbnail=guild.icon.url if guild.icon else None,
+            fields=[
+                {"name": sc("owner"),          "value": guild.owner.mention if guild.owner else "Unknown",    "inline": True},
+                {"name": sc("members"),         "value": f"**{guild.member_count:,}**",                       "inline": True},
+                {"name": sc("channels"),        "value": f"**{len(guild.text_channels)}** text  **{len(guild.voice_channels)}** voice", "inline": True},
+                {"name": sc("roles"),           "value": f"**{len(guild.roles)}**",                           "inline": True},
+                {"name": sc("boost level"),     "value": f"**{guild.premium_tier}** ({guild.premium_subscription_count} boosts)", "inline": True},
+                {"name": sc("created"),         "value": f"<t:{int(guild.created_at.timestamp())}:D>",         "inline": True},
+                {"name": sc("server id"),       "value": f"`{guild.id}`",                                     "inline": False},
+            ]
+        )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="8ball", description="Ask the magic 8-ball a question")
+    @app_commands.describe(question="Your yes/no question")
+    async def eightball(self, interaction: discord.Interaction, question: str):
+        """Magic 8-ball"""
+        responses = [
+            ("It is certain.", EmbedColor.SUCCESS),
+            ("It is decidedly so.", EmbedColor.SUCCESS),
+            ("Without a doubt.", EmbedColor.SUCCESS),
+            ("Yes, definitely.", EmbedColor.SUCCESS),
+            ("You may rely on it.", EmbedColor.SUCCESS),
+            ("As I see it, yes.", EmbedColor.SUCCESS),
+            ("Most likely.", EmbedColor.SUCCESS),
+            ("Outlook good.", EmbedColor.SUCCESS),
+            ("Yes.", EmbedColor.SUCCESS),
+            ("Signs point to yes.", EmbedColor.SUCCESS),
+            ("Reply hazy, try again.", EmbedColor.WARNING),
+            ("Ask again later.", EmbedColor.WARNING),
+            ("Better not tell you now.", EmbedColor.WARNING),
+            ("Cannot predict now.", EmbedColor.WARNING),
+            ("Concentrate and ask again.", EmbedColor.WARNING),
+            ("Don't count on it.", EmbedColor.ERROR),
+            ("My reply is no.", EmbedColor.ERROR),
+            ("My sources say no.", EmbedColor.ERROR),
+            ("Outlook not so good.", EmbedColor.ERROR),
+            ("Very doubtful.", EmbedColor.ERROR),
+        ]
+        answer, color = random.choice(responses)
+        embed = EmbedFactory.create(
+            title=f"🎱 {sc('8ball')}",
+            description=f"**{sc('question')}** {question}\n**{sc('answer')}** {answer}",
+            color=color
+        )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="roll", description="Roll a dice")
+    @app_commands.describe(sides="Number of sides (default: 6)", count="Number of dice (default: 1)")
+    async def roll(self, interaction: discord.Interaction, sides: int = 6, count: int = 1):
+        """Roll dice"""
+        if sides < 2 or sides > 1000:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Invalid Dice", "Sides must be between 2 and 1000"), ephemeral=True)
+            return
+        if count < 1 or count > 20:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Invalid Count", "Count must be between 1 and 20"), ephemeral=True)
+            return
+        rolls = [random.randint(1, sides) for _ in range(count)]
+        total = sum(rolls)
+        rolls_str = "  ".join(f"`{r}`" for r in rolls)
+        desc = f"{rolls_str}"
+        if count > 1:
+            desc += f"\n**{sc('total')}** {total}"
+        embed = EmbedFactory.create(
+            title=f"🎲 {sc('Roll')} {count}d{sides}",
+            description=desc,
+            color=EmbedColor.PRIMARY
+        )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="choose", description="Pick randomly from your options")
+    @app_commands.describe(options="Options separated by commas (e.g. pizza, sushi, tacos)")
+    async def choose(self, interaction: discord.Interaction, options: str):
+        """Choose between options"""
+        choices = [o.strip() for o in options.split(",") if o.strip()]
+        if len(choices) < 2:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Too Few Options", "Provide at least 2 options separated by commas"), ephemeral=True)
+            return
+        chosen = random.choice(choices)
+        embed = EmbedFactory.create(
+            title=f"◈ {sc('Choose')}",
+            description=f"**{sc('options')}** {', '.join(choices)}\n**{sc('chosen')}** {chosen}",
+            color=EmbedColor.PRIMARY
+        )
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="poll", description="Create a poll (Admin)")
     @app_commands.describe(
@@ -249,9 +378,8 @@ class Utility(commands.Cog):
 
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="userinfo", description="Get information about a user (Admin)")
+    @app_commands.command(name="userinfo", description="Get information about a user")
     @app_commands.describe(user="User to get info about")
-    @is_admin()
     async def userinfo(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
         """Get user information"""
         target = user or interaction.user
@@ -278,9 +406,8 @@ class Utility(commands.Cog):
 
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="avatar", description="Get user's avatar (Admin)")
+    @app_commands.command(name="avatar", description="Get user's avatar")
     @app_commands.describe(user="User to get avatar from")
-    @is_admin()
     async def avatar(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
         """Get user avatar"""
         target = user or interaction.user

@@ -11,7 +11,7 @@ from typing import Optional
 import logging
 import random
 
-from utils.embeds import EmbedFactory, EmbedColor
+from utils.embeds import EmbedFactory, EmbedColor, sc
 from utils.permissions import is_admin
 from database.db_manager import DatabaseManager
 
@@ -31,8 +31,7 @@ class Economy(commands.Cog):
 
     # NOTE: /balance command has been moved to games.py as PUBLIC command
 
-    @app_commands.command(name="daily", description="Claim your daily reward (Admin)")
-    @is_admin()
+    @app_commands.command(name="daily", description="Claim your daily reward")
     async def daily(self, interaction: discord.Interaction):
         """Claim daily reward"""
         user_data = await self.db.get_user(interaction.user.id, interaction.guild.id)
@@ -186,8 +185,7 @@ class Economy(commands.Cog):
 
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="shop", description="View the server shop (Admin)")
-    @is_admin()
+    @app_commands.command(name="shop", description="View the server shop")
     async def shop(self, interaction: discord.Interaction):
         """View shop"""
         items = await self.db.get_shop_items(interaction.guild.id)
@@ -209,6 +207,193 @@ class Economy(commands.Cog):
             description=description,
             color=EmbedColor.ECONOMY
         )
+
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="weekly", description="Claim your weekly reward")
+    async def weekly(self, interaction: discord.Interaction):
+        """Claim weekly reward"""
+        user_data = await self.db.get_user(interaction.user.id, interaction.guild.id)
+        if not user_data:
+            user_data = await self.db.create_user(interaction.user.id, interaction.guild.id)
+
+        last_weekly = user_data.get('last_weekly', 0)
+        current_time = datetime.utcnow().timestamp()
+        cooldown = 604800  # 7 days
+
+        if current_time - last_weekly < cooldown:
+            time_left = cooldown - (current_time - last_weekly)
+            days = int(time_left // 86400)
+            hours = int((time_left % 86400) // 3600)
+            await interaction.response.send_message(
+                embed=EmbedFactory.warning(
+                    "Cooldown Active",
+                    f"Come back in **{days}d {hours}h** for your weekly reward"
+                ),
+                ephemeral=True
+            )
+            return
+
+        weekly_amount = self.module_config.get('daily_reward', 100) * 5
+        await self.db.add_balance(interaction.user.id, interaction.guild.id, weekly_amount)
+        await self.db.update_user(interaction.user.id, interaction.guild.id, {'last_weekly': current_time})
+        new_balance = user_data.get('balance', 0) + weekly_amount
+
+        embed = EmbedFactory.success(
+            "Weekly Reward Claimed!",
+            f"You received **{self.currency_symbol} {weekly_amount:,}**!\n\n"
+            f"**{sc('new balance')}** {self.currency_symbol} {new_balance:,}"
+        )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="work", description="Work to earn some currency")
+    async def work(self, interaction: discord.Interaction):
+        """Work for currency"""
+        user_data = await self.db.get_user(interaction.user.id, interaction.guild.id)
+        if not user_data:
+            user_data = await self.db.create_user(interaction.user.id, interaction.guild.id)
+
+        last_work = user_data.get('last_work', 0)
+        current_time = datetime.utcnow().timestamp()
+        cooldown = 3600  # 1 hour
+
+        if current_time - last_work < cooldown:
+            time_left = cooldown - (current_time - last_work)
+            minutes = int(time_left // 60)
+            seconds = int(time_left % 60)
+            await interaction.response.send_message(
+                embed=EmbedFactory.warning(
+                    "Still Working",
+                    f"You need to rest for **{minutes}m {seconds}s** before working again"
+                ),
+                ephemeral=True
+            )
+            return
+
+        jobs = [
+            ("delivered packages", "📦"), ("wrote code", "💻"), ("sold lemonade", "🍋"),
+            ("fixed computers", "🖥️"), ("walked dogs", "🐕"), ("cooked meals", "🍳"),
+            ("taught lessons", "📚"), ("drove a taxi", "🚕"), ("mined crypto", "⛏️"),
+            ("streamed online", "🎮"),
+        ]
+        job, emoji = random.choice(jobs)
+        earned = random.randint(
+            self.module_config.get('daily_reward', 100) // 4,
+            self.module_config.get('daily_reward', 100) // 2
+        )
+
+        await self.db.add_balance(interaction.user.id, interaction.guild.id, earned)
+        await self.db.update_user(interaction.user.id, interaction.guild.id, {'last_work': current_time})
+        new_balance = user_data.get('balance', 0) + earned
+
+        embed = EmbedFactory.success(
+            f"{emoji} Work Complete",
+            f"You {job} and earned **{self.currency_symbol} {earned:,}**!\n\n"
+            f"**{sc('new balance')}** {self.currency_symbol} {new_balance:,}"
+        )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="transfer", description="Transfer currency to another user")
+    @app_commands.describe(user="User to transfer to", amount="Amount to transfer")
+    async def transfer(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        """Transfer currency between users"""
+        if amount <= 0:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Invalid Amount", "Amount must be positive"), ephemeral=True)
+            return
+        if user.id == interaction.user.id:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Invalid Target", "You can't transfer to yourself"), ephemeral=True)
+            return
+        if user.bot:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Invalid Target", "You can't transfer to bots"), ephemeral=True)
+            return
+
+        sender_data = await self.db.get_user(interaction.user.id, interaction.guild.id)
+        if not sender_data:
+            sender_data = await self.db.create_user(interaction.user.id, interaction.guild.id)
+
+        if sender_data.get('balance', 0) < amount:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Insufficient Funds", "You don't have enough currency"), ephemeral=True)
+            return
+
+        await self.db.remove_balance(interaction.user.id, interaction.guild.id, amount)
+        await self.db.add_balance(user.id, interaction.guild.id, amount)
+
+        embed = EmbedFactory.success(
+            "Transfer Complete",
+            f"{interaction.user.mention} → {user.mention}\n\n"
+            f"**{sc('amount')}** {self.currency_symbol} {amount:,}"
+        )
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="rob", description="Attempt to rob another user")
+    @app_commands.describe(user="User to rob")
+    async def rob(self, interaction: discord.Interaction, user: discord.Member):
+        """Rob another user"""
+        if user.id == interaction.user.id:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Invalid Target", "You can't rob yourself"), ephemeral=True)
+            return
+        if user.bot:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Invalid Target", "You can't rob bots"), ephemeral=True)
+            return
+
+        robber_data = await self.db.get_user(interaction.user.id, interaction.guild.id)
+        if not robber_data:
+            robber_data = await self.db.create_user(interaction.user.id, interaction.guild.id)
+
+        last_rob = robber_data.get('last_rob', 0)
+        current_time = datetime.utcnow().timestamp()
+        rob_cooldown = 7200  # 2 hours
+
+        if current_time - last_rob < rob_cooldown:
+            time_left = rob_cooldown - (current_time - last_rob)
+            minutes = int(time_left // 60)
+            await interaction.response.send_message(
+                embed=EmbedFactory.warning("Laying Low", f"You need to wait **{minutes}m** before robbing again"),
+                ephemeral=True
+            )
+            return
+
+        victim_data = await self.db.get_user(user.id, interaction.guild.id)
+        if not victim_data:
+            victim_data = await self.db.create_user(user.id, interaction.guild.id)
+
+        victim_balance = victim_data.get('balance', 0)
+        if victim_balance < 50:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Broke Target", f"{user.mention} doesn't have enough to steal from"),
+                ephemeral=True
+            )
+            return
+
+        await self.db.update_user(interaction.user.id, interaction.guild.id, {'last_rob': current_time})
+
+        success_chance = 0.45
+        if random.random() < success_chance:
+            stolen = random.randint(int(victim_balance * 0.10), int(victim_balance * 0.35))
+            stolen = max(10, stolen)
+            await self.db.remove_balance(user.id, interaction.guild.id, stolen)
+            await self.db.add_balance(interaction.user.id, interaction.guild.id, stolen)
+            embed = EmbedFactory.success(
+                "🦹 Successful Robbery",
+                f"You robbed **{self.currency_symbol} {stolen:,}** from {user.mention}!\n\n"
+                f"**{sc('your balance')}** {self.currency_symbol} {robber_data.get('balance', 0) + stolen:,}"
+            )
+        else:
+            fine = random.randint(50, max(50, int(robber_data.get('balance', 0) * 0.15)))
+            fine = min(fine, robber_data.get('balance', 0))
+            if fine > 0:
+                await self.db.remove_balance(interaction.user.id, interaction.guild.id, fine)
+            embed = EmbedFactory.error(
+                "🚔 Caught!",
+                f"You were caught trying to rob {user.mention}!\n\n"
+                f"**{sc('fine')}** {self.currency_symbol} {fine:,}"
+            )
 
         await interaction.response.send_message(embed=embed)
 

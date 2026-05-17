@@ -135,6 +135,65 @@ class Leveling(commands.Cog):
             ephemeral=True
         )
 
+    @app_commands.command(name="xpadd", description="Add XP to a user (Admin)")
+    @app_commands.describe(user="User to add XP to", amount="Amount of XP to add")
+    @is_admin()
+    async def xp_add(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        """Add XP to a user"""
+        if amount <= 0:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Invalid Amount", "Amount must be positive"), ephemeral=True)
+            return
+
+        user_data = await self.db.get_user(user.id, interaction.guild.id)
+        if not user_data:
+            user_data = await self.db.create_user(user.id, interaction.guild.id)
+
+        new_xp = user_data.get('xp', 0) + amount
+        current_level = user_data.get('level', 0)
+        next_level_xp = calculate_level_xp(current_level + 1)
+
+        if new_xp >= next_level_xp:
+            new_level = current_level + 1
+            await self.db.update_user(user.id, interaction.guild.id, {'xp': new_xp, 'level': new_level})
+        else:
+            await self.db.update_user(user.id, interaction.guild.id, {'xp': new_xp})
+
+        await interaction.response.send_message(
+            embed=EmbedFactory.success("XP Added", f"Added **{amount:,} XP** to {user.mention}\n**{sc('total xp')}** {new_xp:,}"),
+            ephemeral=True
+        )
+
+    @app_commands.command(name="xpremove", description="Remove XP from a user (Admin)")
+    @app_commands.describe(user="User to remove XP from", amount="Amount of XP to remove")
+    @is_admin()
+    async def xp_remove(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        """Remove XP from a user"""
+        if amount <= 0:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Invalid Amount", "Amount must be positive"), ephemeral=True)
+            return
+
+        user_data = await self.db.get_user(user.id, interaction.guild.id)
+        if not user_data:
+            await interaction.response.send_message(
+                embed=EmbedFactory.error("Not Found", f"{user.mention} has no XP data"), ephemeral=True)
+            return
+
+        new_xp = max(0, user_data.get('xp', 0) - amount)
+        new_level = 0
+        xp_check = new_xp
+        while xp_check >= calculate_level_xp(new_level + 1):
+            xp_check -= calculate_level_xp(new_level + 1)
+            new_level += 1
+
+        await self.db.update_user(user.id, interaction.guild.id, {'xp': new_xp, 'level': new_level})
+
+        await interaction.response.send_message(
+            embed=EmbedFactory.success("XP Removed", f"Removed **{amount:,} XP** from {user.mention}\n**{sc('total xp')}** {new_xp:,}"),
+            ephemeral=True
+        )
+
     @app_commands.command(name="setlevel", description="Set user's level (Admin)")
     @app_commands.describe(
         user="User to modify",
