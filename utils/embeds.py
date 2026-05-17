@@ -33,7 +33,6 @@ class EmbedColor:
 
 
 _FOOTER = sc("logiq") + "  ·  logiq bot"
-_DIV    = "╌" * 32
 
 
 class EmbedFactory:
@@ -116,10 +115,7 @@ class EmbedFactory:
     def level_up(user: discord.Member, new_level: int, xp: int) -> discord.Embed:
         return EmbedFactory.create(
             title=f"🎉 {sc('Level Up')}",
-            description=(
-                f"{user.mention} just reached **{sc('Level')} {new_level}**!\n"
-                f"{_DIV}"
-            ),
+            description=f"{user.mention} just reached **{sc('Level')} {new_level}**!",
             color=EmbedColor.LEVELING,
             thumbnail=user.display_avatar.url,
             fields=[
@@ -139,7 +135,7 @@ class EmbedFactory:
             title=f"◈ {sc('Rank')} — {user.display_name}",
             color=EmbedColor.LEVELING,
             thumbnail=user.display_avatar.url,
-            description=f"`{bar}` {progress_pct * 100:.1f}%\n{_DIV}",
+            description=f"`{bar}` {progress_pct * 100:.1f}%",
             fields=[
                 {"name": sc("rank"),     "value": f"**#{rank}**",                       "inline": True},
                 {"name": sc("level"),    "value": f"**{level}**",                       "inline": True},
@@ -153,11 +149,7 @@ class EmbedFactory:
             title=f"{currency_symbol} {sc('Balance')}",
             color=EmbedColor.ECONOMY,
             thumbnail=user.display_avatar.url,
-            description=(
-                f"{user.mention}\n"
-                f"{_DIV}\n"
-                f"{currency_symbol}  **{balance:,}**"
-            )
+            description=f"{user.mention}\n{currency_symbol}  **{balance:,}**"
         )
 
     @staticmethod
@@ -170,7 +162,6 @@ class EmbedFactory:
         return EmbedFactory.create(
             title=f"🔨 {sc(action)}",
             color=EmbedColor.ERROR,
-            description=_DIV,
             fields=[
                 {"name": sc("user"),      "value": f"{user.mention}\n`{user.id}`", "inline": True},
                 {"name": sc("moderator"), "value": moderator.mention,              "inline": True},
@@ -182,11 +173,7 @@ class EmbedFactory:
     def verification_prompt() -> discord.Embed:
         return EmbedFactory.create(
             title=f"🔐 {sc('Verification Required')}",
-            description=(
-                f"{_DIV}\n"
-                f"Click the button below to verify yourself\n"
-                f"and unlock access to the server."
-            ),
+            description="Click the button below to verify yourself and unlock access to the server.",
             color=EmbedColor.PRIMARY,
             footer=sc("complete verification to unlock all channels") + "  ·  " + sc("logiq")
         )
@@ -195,7 +182,7 @@ class EmbedFactory:
     def ticket_created(ticket_id: str, category: str) -> discord.Embed:
         return EmbedFactory.create(
             title=f"🎫 {sc('Ticket Created')}",
-            description=f"Your support ticket has been created.\n{_DIV}",
+            description="Your support ticket has been created.",
             color=EmbedColor.SUCCESS,
             fields=[
                 {"name": sc("ticket id"), "value": f"`{ticket_id}`", "inline": True},

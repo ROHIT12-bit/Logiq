@@ -228,10 +228,10 @@ class Giveaways(commands.Cog):
         embed = EmbedFactory.create(
             title=f"🎉 {sc('Giveaway')}",
             description=(
-                f"**{sc('prize')}** ╌╌ {prize}\n\n"
-                f"**{sc('winners')}** ╌╌ {winners}\n"
-                f"**{sc('hosted by')}** ╌╌ {interaction.user.mention}\n"
-                f"**{sc('ends')}** ╌╌ <t:{end_timestamp}:R>\n"
+                f"**{sc('prize')}** {prize}\n\n"
+                f"**{sc('winners')}** {winners}\n"
+                f"**{sc('hosted by')}** {interaction.user.mention}\n"
+                f"**{sc('ends')}** <t:{end_timestamp}:R>\n"
                 f"<t:{end_timestamp}:F>\n\n"
                 f"*Click the button below to enter!*"
             ),
