@@ -11,6 +11,8 @@ from functools import wraps
 def is_admin():
     """Check if user has administrator permission"""
     async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            return False
         return interaction.user.guild_permissions.administrator
     return app_commands.check(predicate)
 
@@ -18,6 +20,8 @@ def is_admin():
 def is_moderator():
     """Check if user has moderation permissions"""
     async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            return False
         perms = interaction.user.guild_permissions
         return any([
             perms.administrator,
@@ -31,6 +35,8 @@ def is_moderator():
 def has_role(role_id: int):
     """Check if user has specific role"""
     async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            return False
         return any(role.id == role_id for role in interaction.user.roles)
     return app_commands.check(predicate)
 
@@ -38,6 +44,8 @@ def has_role(role_id: int):
 def bot_has_permissions(**perms):
     """Check if bot has required permissions"""
     async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.guild is None:
+            return False
         bot_perms = interaction.guild.me.guild_permissions
         return all(getattr(bot_perms, perm, False) for perm in perms)
     return app_commands.check(predicate)
@@ -46,6 +54,8 @@ def bot_has_permissions(**perms):
 def is_guild_owner():
     """Check if user is guild owner"""
     async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.guild is None:
+            return False
         return interaction.user.id == interaction.guild.owner_id
     return app_commands.check(predicate)
 
