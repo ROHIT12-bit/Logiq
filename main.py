@@ -30,7 +30,7 @@ class Logiq(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
-        intents.presences = True
+        intents.presences = False
 
         # Initialize bot
         super().__init__(
