@@ -148,17 +148,67 @@ class Utility(commands.Cog):
                 logger.error(f"Error in reminder checker: {e}", exc_info=True)
                 await asyncio.sleep(60)
 
-    @app_commands.command(name="mid", description="Show IDs for the current channel, server, and your account")
-    async def mid(self, interaction: discord.Interaction):
-        """Show useful IDs"""
-        # Fetch the most recent message in the channel (before this command)
-        last_msg_id = "—"
-        last_msg_url = None
+    @app_commands.command(name="mid", description="Get a message ID — paste a message link, or leave blank for channel/user IDs")
+    @app_commands.describe(message_link="Paste a Discord message link to get its ID (right-click message → Copy Message Link)")
+    async def mid(self, interaction: discord.Interaction, message_link: Optional[str] = None):
+        """Show message / channel / server IDs"""
+        import re
+
+        # ── If a message link was provided, parse and show that message's ID ─
+        if message_link:
+            # Discord message link pattern: /channels/{guild}/{channel}/{message}
+            match = re.search(r"discord(?:app)?\.com/channels/(\d+)/(\d+)/(\d+)", message_link)
+            if not match:
+                await interaction.response.send_message(
+                    embed=EmbedFactory.error(
+                        "Invalid Link",
+                        "That doesn't look like a Discord message link.\n"
+                        "Right-click any message → **Copy Message Link**, then paste it here."
+                    ),
+                    ephemeral=True
+                )
+                return
+
+            link_guild_id   = match.group(1)
+            link_channel_id = match.group(2)
+            link_message_id = match.group(3)
+
+            # Try to fetch the actual message to show author + timestamp
+            fetched = None
+            try:
+                ch = self.bot.get_channel(int(link_channel_id))
+                if ch:
+                    fetched = await ch.fetch_message(int(link_message_id))
+            except Exception:
+                pass
+
+            embed = discord.Embed(
+                title=f"◈ {sc('Message Info')}",
+                color=EmbedColor.PRIMARY,
+            )
+            embed.add_field(name=sc("message id"),  value=f"`{link_message_id}`",  inline=False)
+            embed.add_field(name=sc("channel id"),  value=f"`{link_channel_id}`",  inline=True)
+            embed.add_field(name=sc("server id"),   value=f"`{link_guild_id}`",    inline=True)
+            if fetched:
+                embed.add_field(name=sc("author"),   value=f"{fetched.author.mention} `{fetched.author.id}`", inline=False)
+                embed.add_field(name=sc("sent at"),  value=f"<t:{int(fetched.created_at.timestamp())}:F>",   inline=True)
+                embed.add_field(name=sc("link"),     value=f"[Jump to message]({fetched.jump_url})",          inline=True)
+                if fetched.content:
+                    preview = fetched.content[:120] + ("…" if len(fetched.content) > 120 else "")
+                    embed.add_field(name=sc("preview"), value=f"> {preview}", inline=False)
+            else:
+                embed.add_field(name=sc("link"), value=f"[Jump to message]({message_link})", inline=False)
+
+            embed.set_footer(text=sc("rioshin") + " • " + sc("rioshinbot"))
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        # ── No link provided — show last message + context IDs ───────────────
+        last_msg = None
         try:
-            async for msg in interaction.channel.history(limit=2):
-                if msg.author.id != self.bot.user.id:
-                    last_msg_id = str(msg.id)
-                    last_msg_url = msg.jump_url
+            async for msg in interaction.channel.history(limit=5):
+                if not msg.author.bot:
+                    last_msg = msg
                     break
         except Exception:
             pass
@@ -166,27 +216,24 @@ class Utility(commands.Cog):
         embed = discord.Embed(
             title=f"◈ {sc('IDs')}",
             description=(
-                "All IDs are shown in `code blocks` — tap and hold to copy on mobile, "
-                "or click to select on desktop."
+                "`tap and hold` to copy on mobile  •  `click` to select on desktop\n\n"
+                "To get a **specific** message ID, paste its link here:\n"
+                "`/mid message_link: <paste link>`\n"
+                "or right-click any message → **Apps → Get Message ID**"
             ),
             color=EmbedColor.PRIMARY,
         )
-        embed.add_field(name=sc("your id"),     value=f"`{interaction.user.id}`",    inline=True)
-        embed.add_field(name=sc("channel id"),  value=f"`{interaction.channel.id}`", inline=True)
-        embed.add_field(name=sc("server id"),   value=f"`{interaction.guild.id}`",   inline=True)
+        embed.add_field(name=sc("your id"),    value=f"`{interaction.user.id}`",    inline=True)
+        embed.add_field(name=sc("channel id"), value=f"`{interaction.channel.id}`", inline=True)
+        embed.add_field(name=sc("server id"),  value=f"`{interaction.guild.id}`",   inline=True)
 
-        if last_msg_id != "—":
+        if last_msg:
             embed.add_field(
                 name=sc("last message id"),
-                value=f"`{last_msg_id}` — [jump]({last_msg_url})",
+                value=f"`{last_msg.id}` — [jump]({last_msg.jump_url})\n**{sc('from')}** {last_msg.author.mention}",
                 inline=False
             )
 
-        embed.add_field(
-            name=sc("tip"),
-            value="Right-click (or hold) any message → **Apps → Get Message ID** to grab a specific message's ID.",
-            inline=False
-        )
         embed.set_footer(text=sc("rioshin") + " • " + sc("rioshinbot"))
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
