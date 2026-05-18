@@ -207,9 +207,8 @@ class Utility(commands.Cog):
         last_msg = None
         try:
             async for msg in interaction.channel.history(limit=5):
-                if not msg.author.bot:
-                    last_msg = msg
-                    break
+                last_msg = msg
+                break
         except Exception:
             pass
 
