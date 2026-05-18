@@ -93,10 +93,32 @@ class Utility(commands.Cog):
         self.db = db
         self.config = config
         self.reminders_task = self.bot.loop.create_task(self.check_reminders())
+        # Register right-click context menu
+        self.ctx_get_mid = app_commands.ContextMenu(
+            name="Get Message ID",
+            callback=self._ctx_message_id,
+        )
+        self.bot.tree.add_command(self.ctx_get_mid)
 
     def cog_unload(self):
         """Cleanup on cog unload"""
         self.reminders_task.cancel()
+        self.bot.tree.remove_command(self.ctx_get_mid.name, type=self.ctx_get_mid.type)
+
+    async def _ctx_message_id(self, interaction: discord.Interaction, message: discord.Message):
+        """Right-click context menu: Get Message ID"""
+        jump = f"[Jump to message]({message.jump_url})"
+        embed = discord.Embed(
+            title=f"◈ {sc('Message ID')}",
+            color=EmbedColor.PRIMARY,
+        )
+        embed.add_field(name=sc("message id"),  value=f"`{message.id}`",          inline=False)
+        embed.add_field(name=sc("channel id"),  value=f"`{message.channel.id}`",  inline=True)
+        embed.add_field(name=sc("author id"),   value=f"`{message.author.id}`",   inline=True)
+        embed.add_field(name=sc("sent at"),     value=f"<t:{int(message.created_at.timestamp())}:F>", inline=False)
+        embed.add_field(name=sc("link"),        value=jump,                        inline=False)
+        embed.set_footer(text=sc("rioshin") + " • " + sc("rioshinbot"))
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     async def check_reminders(self):
         """Background task to check for due reminders"""
@@ -125,6 +147,48 @@ class Utility(commands.Cog):
             except Exception as e:
                 logger.error(f"Error in reminder checker: {e}", exc_info=True)
                 await asyncio.sleep(60)
+
+    @app_commands.command(name="mid", description="Show IDs for the current channel, server, and your account")
+    async def mid(self, interaction: discord.Interaction):
+        """Show useful IDs"""
+        # Fetch the most recent message in the channel (before this command)
+        last_msg_id = "—"
+        last_msg_url = None
+        try:
+            async for msg in interaction.channel.history(limit=2):
+                if msg.author.id != self.bot.user.id:
+                    last_msg_id = str(msg.id)
+                    last_msg_url = msg.jump_url
+                    break
+        except Exception:
+            pass
+
+        embed = discord.Embed(
+            title=f"◈ {sc('IDs')}",
+            description=(
+                "All IDs are shown in `code blocks` — tap and hold to copy on mobile, "
+                "or click to select on desktop."
+            ),
+            color=EmbedColor.PRIMARY,
+        )
+        embed.add_field(name=sc("your id"),     value=f"`{interaction.user.id}`",    inline=True)
+        embed.add_field(name=sc("channel id"),  value=f"`{interaction.channel.id}`", inline=True)
+        embed.add_field(name=sc("server id"),   value=f"`{interaction.guild.id}`",   inline=True)
+
+        if last_msg_id != "—":
+            embed.add_field(
+                name=sc("last message id"),
+                value=f"`{last_msg_id}` — [jump]({last_msg_url})",
+                inline=False
+            )
+
+        embed.add_field(
+            name=sc("tip"),
+            value="Right-click (or hold) any message → **Apps → Get Message ID** to grab a specific message's ID.",
+            inline=False
+        )
+        embed.set_footer(text=sc("rioshin") + " • " + sc("rioshinbot"))
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="ping", description="Check bot latency")
     async def ping(self, interaction: discord.Interaction):
